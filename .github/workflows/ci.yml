@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lambda-tests:
+    name: lambda / pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          pip install -r lambda/requirements.txt pytest --break-system-packages
+      - name: Run unit tests
+        working-directory: lambda
+        env:
+          AWS_DEFAULT_REGION: us-east-1
+        run: python -m pytest tests/ -v
+
+  infra-validate:
+    name: infra / SAM template validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install cfn-lint
+        run: pip install cfn-lint --break-system-packages
+      - name: Lint CloudFormation/SAM template
+        working-directory: infra
+        run: cfn-lint template.yaml
+
+  frontend-build:
+    name: frontend / build & lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+      - name: Build (static export)
+        working-directory: frontend
+        run: npm run build

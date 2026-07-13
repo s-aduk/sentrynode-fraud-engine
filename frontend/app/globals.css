@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  /* Self-contained system font stacks — deliberately no external font
+     fetch (no Google Fonts network dependency), which also keeps the
+     build hermetic and avoids a third-party call from a security tool. */
+  --font-display: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+}
+
+* {
+  scrollbar-color: #22303C #0B0F14;
+}
+
+body {
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(61, 220, 151, 0.05), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(255, 79, 94, 0.04), transparent 40%);
+  background-attachment: fixed;
+}
+
+/* Visible keyboard focus everywhere, not just on links/buttons that opt in */
+:focus-visible {
+  outline: 2px solid #3DDC97;
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
