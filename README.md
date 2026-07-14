@@ -1,9 +1,9 @@
 # SentryNode Fraud Engine
 
-![GitHub release](https://img.shields.io/github/v/release/s-aduk/sentrynode-fraud-engine-fab-v2)
-![GitHub last commit](https://img.shields.io/github/last-commit/s-aduk/sentrynode-fraud-engine-fab-v2)
-![GitHub issues](https://img.shields.io/github/issues/s-aduk/sentrynode-fraud-engine-fab-v2)
-![GitHub license](https://img.shields.io/github/license/s-aduk/sentrynode-fraud-engine-fab-v2)
+![GitHub release](https://img.shields.io/github/v/release/s-aduk/sentrynode-fraud-engine)
+![GitHub last commit](https://img.shields.io/github/last-commit/s-aduk/sentrynode-fraud-engine)
+![GitHub issues](https://img.shields.io/github/issues/s-aduk/sentrynode-fraud-engine)
+![GitHub license](https://img.shields.io/github/license/s-aduk/sentrynode-fraud-engine)
 ![AWS](https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge&logo=python&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-14.2-black?style=for-the-badge&logo=next.js&logoColor=white)
