@@ -23,7 +23,7 @@ graph TD
     classDef aws fill:#161b22,color:#c9d1d9,stroke:#30363d,stroke-width:1px;
     classDef storage fill:#0d1117,color:#c9d1d9,stroke:#30363d,stroke-width:1px;
     classDef alert fill:#161b22,color:#ff9f43,stroke:#d29922,stroke-width:1px;
-    classDef decision fill:#161b22,color:#ff9f43,stroke:#d29922,stroke-dasharray: 5 5;
+    classDef decision fill:#161b22,color:#ff9f43,stroke:#d29922,stroke-dasharray:5 5;
     
     %% Clients
     subgraph Clients[Client Applications]
@@ -33,55 +33,55 @@ graph TD
     
     %% Ingestion
     subgraph Ingestion[Ingestion Layer]
-        C[API Gateway<br>HTTP API]:::aws
-        D[SQS<br>Ingestion Queue]:::aws
-        E[SQS<br>Dead Letter<br>Queue]:::aws
+        C["API Gateway<br>HTTP API"]:::aws
+        D["SQS<br>Ingestion Queue"]:::aws
+        E["SQS<br>Dead Letter<br>Queue"]:::aws
     end
     
     %% Processing
     subgraph Processing[Processing Layer]
-        F[Lambda<br>Fraud Evaluator]:::aws
-        G[Validation<br>Engine]:::aws
-        H[Scoring<br>Engine]:::aws
-        I[Batch<br>Processor]:::aws
+        F["Lambda<br>Fraud Evaluator"]:::aws
+        G["Validation<br>Engine"]:::aws
+        H["Scoring<br>Engine"]:::aws
+        I["Batch<br>Processor"]:::aws
     end
     
     %% Storage
     subgraph Storage[Storage Layer]
-        J[DynamoDB<br>Audit Table]:::storage
-        K[S3<br>Archival<br>(Future)]:::storage
+        J["DynamoDB<br>Audit Table"]:::storage
+        K["S3<br>Archival<br>(Future)"]:::storage
     end
     
     %% Alerting
     subgraph Alerting[Alerting Layer]
-        L[SNS<br>Alert Topic]:::aws
-        M[Email<br>Notifications]:::alert
-        N[SMS<br>Notifications]:::alert
-        O[Slack/Webhook]:::alert
+        L["SNS<br>Alert Topic"]:::aws
+        M["Email<br>Notifications"]:::alert
+        N["SMS<br>Notifications"]:::alert
+        O["Slack/Webhook"]:::alert
     end
     
     %% Connections
-    A -->|POST /transaction<br>(CORS Protected)| C
-    C -->|AWS_PROXY → SQS<br>sqs:SendMessage| D
-    D -->|Batch Size: 10<br>Event Source| F
+    A -->|POST /transaction| C
+    C -->|AWS_PROXY SQS| D
+    D -->|Batch Size: 10| F
     F -->|Try/Catch Per Record| G
     G -->|Payload Validation| H
     H -->|Heuristic Scoring| I
     I -->|Audit Write| J
-    I -->|Score >= 50?| L
+    I -->|Score >= 50| L
     L -->|Fan Out| M
     L -->|Fan Out| N
     L -->|Fan Out| O
     
     %% Error Handling
-    D -->|maxReceiveCount: 3<br>After 3 Failures| E
-    E -->|Manual Review<br>Required| style E:stroke:#ff7b72,stroke-width:2px
+    D -->|maxReceiveCount: 3| E
     
     %% Styling Classes
     class A,B client;
     class C,D,E,F,G,H,I,L aws;
     class J,K storage;
     class M,N,O alert;
+    style E stroke:#ff7b72,stroke-width:2px;
 ```
 
 ### 📁 Repository Structure
