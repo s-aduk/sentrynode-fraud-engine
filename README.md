@@ -27,8 +27,8 @@ graph TD
     
     %% Clients
     subgraph Clients[Client Applications]
-        A[Next.js<br>Transaction<br>Emulator]:::client
-        B[Future<br>Analytics<br>Dashboard]:::client
+        A["Next.js<br>Transaction<br>Emulator"]:::client
+        B["Future<br>Analytics<br>Dashboard"]:::client
     end
     
     %% Ingestion
