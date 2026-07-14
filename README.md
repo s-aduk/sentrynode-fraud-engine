@@ -1,6 +1,6 @@
 # SentryNode Fraud Engine
 
-![GitHub release](https://img.shields.io/github/v/release/s-aduk/sentrynode-fraud-engine)
+<!--![GitHub release](https://img.shields.io/github/v/release/s-aduk/sentrynode-fraud-engine)-->
 ![GitHub last commit](https://img.shields.io/github/last-commit/s-aduk/sentrynode-fraud-engine)
 ![GitHub issues](https://img.shields.io/github/issues/s-aduk/sentrynode-fraud-engine)
 ![GitHub license](https://img.shields.io/github/license/s-aduk/sentrynode-fraud-engine)
