@@ -2,6 +2,12 @@ AWSTemplateFormatVersion: "2010-09-09"
 
 Description: SentryNode Fraud Engine Infrastructure
 
+Parameters:
+
+  AlertEmail:
+    Type: String
+    Description: Email address for fraud alerts
+
 Resources:
 
   AuditTable:
@@ -15,8 +21,24 @@ Resources:
         - AttributeName: transaction_id
           KeyType: HASH
 
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: SentryNode Fraud Alerts
+
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+      TopicArn: !Ref AlertTopic
+
 Outputs:
 
   AuditTableName:
     Description: Name of the DynamoDB audit table
     Value: !Ref AuditTable
+
+  AlertTopicArn:
+    Description: ARN of the SNS alert topic
+    Value: !Ref AlertTopic
