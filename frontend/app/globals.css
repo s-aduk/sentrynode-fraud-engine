@@ -2,32 +2,168 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Import Google Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
+
 :root {
   color-scheme: dark;
-  /* Self-contained system font stacks — deliberately no external font
-     fetch (no Google Fonts network dependency), which also keeps the
-     build hermetic and avoids a third-party call from a security tool. */
-  --font-display: "Avenir Next", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-body: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+  /* Self-contained system font stacks with fallback to Google Fonts */
+  --font-display: "Fira Code", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-body: "Fira Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --font-mono: "Fira Code", "SFMono-Regular", ui-monospace, Menlo, Consolas, monospace;
+
+  /* Custom color variables for enhanced theming */
+  --color-background: #020617;
+  --color-primary: #0F172A;
+  --color-secondary: #1E293B;
+  --color-tertiary: #334155;
+  --color-accent: #22C55E;
+  --color-accent-hover: #16A34A;
+  --color-text: #F8FAFC;
+  --color-text-secondary: #64748B;
+  --color-text-muted: #94A3B8;
+  --color-danger: #EF4444;
+  --color-warning: #F59E0B;
+  --color-success: #10B981;
 }
 
 * {
-  scrollbar-color: #22303C #0B0F14;
+  scrollbar-color: #27272a #09090b;
 }
 
 body {
+  background-color: var(--color-background);
   background-image:
-    radial-gradient(circle at 15% 0%, rgba(61, 220, 151, 0.05), transparent 45%),
-    radial-gradient(circle at 85% 20%, rgba(255, 79, 94, 0.04), transparent 40%);
+    radial-gradient(circle at 15% 0%, rgba(99, 102, 241, 0.06), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(16, 185, 129, 0.04), transparent 40%);
   background-attachment: fixed;
 }
 
-/* Visible keyboard focus everywhere, not just on links/buttons that opt in */
+/* Enhanced focus styles for better accessibility */
 :focus-visible {
-  outline: 2px solid #3DDC97;
+  outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.25);
 }
+
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #09090b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+/* Animation keyframes */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+/* Animation utilities */
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out forwards;
+}
+
+.animate-fade-in-down {
+  animation: fadeInDown 0.6s ease-out forwards;
+}
+
+.animate-fade-in-left {
+  animation: fadeInLeft 0.6s ease-out forwards;
+}
+
+.animate-fade-in-right {
+  animation: fadeInRight 0.6s ease-out forwards;
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Delayed animations */
+.animate-fade-in-up-0 { animation-delay: 0s; }
+.animate-fade-in-up-1 { animation-delay: 0.1s; }
+.animate-fade-in-up-2 { animation-delay: 0.2s; }
+.animate-fade-in-up-3 { animation-delay: 0.3s; }
+.animate-fade-in-up-4 { animation-delay: 0.4s; }
+.animate-fade-in-up-5 { animation-delay: 0.5s; }
+.animate-fade-in-up-6 { animation-delay: 0.6s; }
+.animate-fade-in-up-7 { animation-delay: 0.7s; }
+.animate-fade-in-up-8 { animation-delay: 0.8s; }
+.animate-fade-in-up-9 { animation-delay: 0.9s; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
