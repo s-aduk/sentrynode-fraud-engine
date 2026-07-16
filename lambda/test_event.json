@@ -1,0 +1,8 @@
+{
+  "Records": [
+    {
+      "messageId": "001",
+      "body": "{\"cardholder_name\":\"John Doe\",\"amount\":15000,\"ip_address\":\"10.0.0.5\",\"country_code\":\"KP\"}"
+    }
+  ]
+}
