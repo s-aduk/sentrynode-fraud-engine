@@ -1,0 +1,52 @@
+{
+  "Records": [
+    {
+      "messageId": "11111111-1111-1111-1111-111111111111",
+      "receiptHandle": "sample-receipt-handle-1",
+      "body": "{\"transaction_id\": \"txn-001\", \"cardholder_name\": \"Ama Owusu\", \"amount\": \"45.00\", \"ip_address\": \"8.8.8.8\", \"country_code\": \"GH\"}",
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1710000000000",
+        "SenderId": "AIDAEXAMPLE",
+        "ApproximateFirstReceiveTimestamp": "1710000000000"
+      },
+      "messageAttributes": {},
+      "md5OfBody": "example",
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:aws:sqs:us-east-1:000000000000:sentrynode-ingestion-queue",
+      "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "22222222-2222-2222-2222-222222222222",
+      "receiptHandle": "sample-receipt-handle-2",
+      "body": "{\"transaction_id\": \"txn-002\", \"cardholder_name\": \"Someone Suspicious\", \"amount\": \"15000.00\", \"ip_address\": \"10.0.0.5\", \"country_code\": \"KP\"}",
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1710000000001",
+        "SenderId": "AIDAEXAMPLE",
+        "ApproximateFirstReceiveTimestamp": "1710000000001"
+      },
+      "messageAttributes": {},
+      "md5OfBody": "example",
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:aws:sqs:us-east-1:000000000000:sentrynode-ingestion-queue",
+      "awsRegion": "us-east-1"
+    },
+    {
+      "messageId": "33333333-3333-3333-3333-333333333333",
+      "receiptHandle": "sample-receipt-handle-3",
+      "body": "{\"cardholder_name\": \"Incomplete Record\"}",
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1710000000002",
+        "SenderId": "AIDAEXAMPLE",
+        "ApproximateFirstReceiveTimestamp": "1710000000002"
+      },
+      "messageAttributes": {},
+      "md5OfBody": "example",
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:aws:sqs:us-east-1:000000000000:sentrynode-ingestion-queue",
+      "awsRegion": "us-east-1"
+    }
+  ]
+}

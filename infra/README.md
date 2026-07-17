@@ -1,200 +1,170 @@
-# `infra/` — Build Guide
+# 🏗️ infra/ - AWS Infrastructure
 
-> **Status:** 🚧 This folder needs to be rebuilt from scratch.
-> This README is the spec — read it fully before writing any CloudFormation/SAM.
+![AWS CloudFormation](https://img.shields.io/badge/AWS_CloudFormation-%2313294D.svg?style=for-the-badge&logo=amazon-aws&logoColor=white
+![Python](https://img.shields.io/badge/Python-3.12-blue?style=for-the-badge&logo=python)
 
-This folder owns every AWS resource SentryNode runs on: the ingestion API,
-the queue, the audit store, the alert topic, and the IAM that wires them
-together. Nothing here calls out to a database or service that isn't
-provisioned in this folder.
+## 🏗️ AWS SAM/CloudFormation Infrastructure
 
----
+This directory contains the infrastructure-as-code definitions for the SentryNode Fraud Engine, deploying a complete serverless fraud detection pipeline on AWS.
 
-## 1. What you're building
+### 📦 What's Included
 
-A single SAM/CloudFormation template (`template.yaml`) that provisions:
+- **`template.yaml`** - Complete SAM template defining:
+  - Amazon API Gateway (HTTP API) with direct SQS integration
+  - Amazon SQS Standard Queue with Dead Letter Queue (DLQ)
+  - AWS Lambda Function (Python 3.12) for fraud evaluation
+  - Amazon DynamoDB Table (PAY_PER_REQUEST) for audit logging
+  - Amazon SNS Topic for fraud alert notifications
+  - IAM Roles and Policies following principle of least privilege
+  - CloudWatch Log Groups with retention policies
 
-| Resource | Purpose |
-|---|---|
-| **API Gateway (HTTP API)** | Accepts `POST /transaction` from the frontend and forwards it straight into SQS. |
-| **SQS ingestion queue + DLQ** | Durable buffer between the API and the Lambda. Failed messages land in the DLQ instead of retrying forever. |
-| **Lambda (fraud evaluator)** | Consumes the queue in batches. Code lives in `../lambda/` — this template just wires its trigger, env vars, and IAM role. |
-| **DynamoDB audit table** | One row per evaluated transaction. |
-| **SNS alert topic** | Fan-out point for high-risk alerts (email today, chat/SMS later). |
+- **`events/sample-sqs-event.json`** - Realistic test event containing:
+  - One clean transaction (low risk)
+  - One high-risk transaction (triggers alert)
+  - One malformed record (tests error handling)
 
-Read [`../docs/architecture.md`](../docs/architecture.md) for the full data
-flow diagram before you start — it explains *why* each hop exists, not just
-what it is. Read [`../docs/decisions.md`](../docs/decisions.md) for the
-reasoning behind API Gateway→SQS direct integration and DynamoDB-over-RDS;
-don't relitigate those in a PR without reading the counterargument that's
-already logged there.
+### 🛠️ Local Development Setup
 
----
+#### Prerequisites
+- [AWS CLI](https://aws.amazon.com/cli/) configured with appropriate permissions
+- [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html) 
+- Python 3.12+ (for cfn-lint if not using SAM CLI)
+- An AWS account (Free Tier sufficient for development & testing)
 
-## 2. Required behavior
-
-Build the template to satisfy every point below. Treat this as acceptance
-criteria, not suggestions.
-
-### API Gateway → SQS
-- Use an `AWS_PROXY` / `SQS-SendMessage` integration — **no Lambda in the
-  ingestion hot path.** The client's POST should return as soon as the
-  message is durably queued, not after the fraud evaluator runs.
-- Give API Gateway a dedicated IAM role (e.g. `ApiGatewaySqsRole`) scoped
-  to `sqs:SendMessage` on **only** the ingestion queue. No broader access.
-- CORS locked to a **single explicit origin**, supplied via a template
-  parameter (e.g. `AllowedOrigin`). No `*` wildcard, anywhere.
-
-### SQS + DLQ
-- `maxReceiveCount: 3` on the redrive policy. A message that fails
-  validation or processing three times moves to the DLQ automatically —
-  it must not retry forever or get silently dropped.
-
-### Lambda trigger
-- Event source: the ingestion queue, batch size `10`.
-- Enable `ReportBatchItemFailures` (`FunctionResponseTypes: ReportBatchItemFailures`)
-  so one malformed record in a batch doesn't block or drop the healthy
-  records alongside it. This only works if the handler in `../lambda/`
-  actually returns partial failures — that's the Lambda team's job, but
-  the trigger config here is what makes it possible.
-- `CodeUri: ../lambda/`, `Handler: fraud_evaluator.handler`,
-  `Runtime: python3.12`. **Keep the handler name in sync** with whatever
-  the lambda folder ships — this is a contract, not a default.
-
-### DynamoDB
-- Billing mode `PAY_PER_REQUEST`. No manually provisioned capacity — see
-  `docs/decisions.md` for why (no capacity planning needed at MVP
-  traffic, avoids guessing RCU/WCU up front).
-- Partition key: `transaction_id`.
-
-### SNS
-- One topic, one email subscription wired via an `AlertEmail` parameter.
-  Don't hardcode an email address into the template.
-- Grant the Lambda's execution role `sns:Publish` on **only** this topic.
-
-### IAM (applies everywhere in this template)
-- Every policy statement names **specific actions and specific resources**.
-  No `"Action": "*"`, no `"Resource": "*"`, no `AdministratorAccess`,
-  ever — including in scratch/debug versions you don't intend to keep.
-- No hardcoded credentials anywhere. All AWS access is via role
-  assumption.
-
-### Cost control
-- CloudWatch log retention capped via a `LogRetentionDays` parameter
-  (default `3`). CloudFormation's own default is "never expire" — don't
-  leave it there.
-
----
-
-## 3. Required parameters & outputs
-
-The template must accept:
-
-| Parameter | Purpose |
-|---|---|
-| `AlertEmail` | Email address for the SNS subscription. |
-| `AllowedOrigin` | The single CORS origin allowed to call the ingestion API. |
-| `LogRetentionDays` | CloudWatch log retention, default `3`. |
-
-The template must export:
-
-| Output | Consumed by |
-|---|---|
-| `IngestionApiUrl` | `frontend/.env.local` → `NEXT_PUBLIC_INGESTION_API_URL` |
-| `AuditTableName` | Reference for anyone building the future read API |
-| `AlertTopicArn` | Reference for anyone adding a chat/SMS subscriber later |
-
-These names aren't arbitrary — the other folders' READMEs and `.env.example`
-files already refer to them by these exact names.
-
----
-
-## 4. Local setup & validation
-
-You'll need the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
-and an AWS account (Free Tier covers everything here).
-
+#### Setup Commands
 ```bash
 cd infra
 
-# Validate the template is well-formed before deploying anything
-sam validate --lint
-
-# Or, without the SAM CLI installed, cfn-lint alone also validates it
+# Validate CloudFormation template syntax
+sam validate --lint              # Using SAM CLI (recommended)
+# OR
 pip install cfn-lint --break-system-packages
-cfn-lint template.yaml
+cfn-lint template.yaml           # Using cfn-lint directly
 
-# Build and deploy — guided mode walks you through AlertEmail and
-# AllowedOrigin interactively
+# Build application dependencies
 sam build
+
+# Deploy to AWS (guided mode prompts for parameters)
 sam deploy --guided
 ```
 
-After deploy, **confirm the SNS email subscription** — check the inbox you
-gave for `AlertEmail`. Alerts won't arrive until you click the confirmation
-link AWS sends.
+#### Deployment Parameters
+During `sam deploy --guided`, you'll be prompted for:
+- **Stack Name**: Logical name for the CloudFormation stack (default: `sentrynode-fraud-engine`)
+- **AWS Region**: Deployment region (default: `us-east-1`)
+- **AlertEmail**: Email address to receive SNS fraud alerts (required)
+- **AllowedOrigin**: CORS origin for frontend access (e.g., `http://localhost:3000`)
 
-Once the Lambda in `../lambda/` exists, test it locally against a
-realistic batch without a real queue:
+> 💡 **Pro Tip**: Use a dedicated email alias for alerts during development to keep your primary inbox clean.
 
+#### Post-Deployment Steps
+1. **Check your email** for the SNS subscription confirmation from AWS
+2. **Click the confirmation link** - alerts will NOT be delivered until confirmed
+3. **Retrieve outputs** from the deployment:
+   ```bash
+   aws cloudformation describe-stacks \
+     --stack-name sentrynode-fraud-engine \
+     --query 'Stacks[0].Outputs'
+   ```
+4. **Copy `IngestionApiUrl`** to `frontend/.env.local` as:
+   ```
+   NEXT_PUBLIC_INGESTION_API_URL=<your-api-gateway-url>
+   ```
+
+#### Local Lambda Testing
+Test the fraud evaluator function locally with sample events:
 ```bash
+# Using the provided sample event
 sam local invoke FraudEvaluatorFunction --event events/sample-sqs-event.json
+
+# Or create custom test events:
+sam local invoke FraudEvaluatorFunction -e events/custom-event.json
 ```
 
-A sample event fixture (`events/sample-sqs-event.json`) — one clean
-transaction, one high-risk transaction, one malformed record — should live
-in this folder so the whole team tests against the same batch shape.
+### 🏗️ Architecture Decisions
 
----
+#### ✅ API Gateway → SQS Direct Integration
+- **Pattern**: `AWS_PROXY` / `SQS-SendMessage` integration
+- **Benefit**: Zero-latency ingestion - API Gateway writes directly to SQS
+- **Security**: `ApiGatewaySqsRole` restricted to `sqs:SendMessage` on specific queue only
+- **Scalability**: Inherits SQS scalability without Lambda warm-up delays
 
-## 5. Free Tier budget
+#### ✅ SQS with Dead Letter Queue
+- **Configuration**: `maxReceiveCount: 3`
+- **Behavior**: Messages failing 3 times move to DLQ for manual inspection
+- **Advantage**: Prevents poison pill messages from blocking queue processing
+- **Operations**: DLQ enables targeted debugging without affecting healthy traffic
 
-Every resource choice here should stay comfortably inside AWS Free Tier at
-MVP-level traffic:
+#### ✅ DynamoDB ON_DEMAND Billing
+- **Selection**: `PAY_PER_REQUEST` billing mode
+- **Benefit**: No capacity planning required for variable traffic patterns
+- **Cost**: Pay only for actual reads/writes (ideal for spiky MVP traffic)
+- **Scaling**: Automatic scaling handles traffic bursts seamlessly
 
-- **Lambda:** 1M free requests/month, 400,000 GB-seconds compute
-- **API Gateway (HTTP API):** 1M free requests/month (first 12 months)
-- **SQS:** 1M free requests/month
-- **DynamoDB on-demand:** 25 GB storage + a generous free request allowance
-- **SNS:** 1,000 free email notifications/month
+#### ✅ Controlled CloudWatch Log Retention
+- **Parameter**: `LogRetentionDays` (default: 3 days)
+- **Purpose**: Explicit cost control vs. default "never expire" behavior
+- **Compliance**: Meets data retention policies while controlling costs
+- **Adjustment**: Increase for production audit requirements
 
-If real traffic pushes past demo-level, re-check current Free Tier limits
-before assuming these numbers still hold — they change over time.
+#### ✅ Strict CORS Configuration
+- **Implementation**: Single explicit origin via `AllowedOrigin` parameter
+- **Security**: No wildcard origins - prevents unauthorized cross-origin requests
+- **Flexibility**: Update via stack update when frontend deployment domains change
 
----
+### 💰 Free Tier Optimization
 
-## 6. Explicitly out of scope for Phase 1
+All services selected to maximize AWS Free Tier benefits at MVP-level traffic:
 
-Don't build these — they're deliberate cuts, not things you forgot. Full
-reasoning in `docs/architecture.md`, "Out of scope."
+| Service | Free Tier Allocation | Usage Pattern |
+|---------|---------------------|---------------|
+| **Lambda** | 1M requests/month, 400,000 GB-sec | Bursty transaction processing |
+| **API Gateway** | 1M requests/month (HTTP API) | Ingestion endpoint only |
+| **SQS** | 1M requests/month | Buffer between API and Lambda |
+| **DynamoDB** | 25GB storage + 25 WCU / 25 RCU | Audit log storage |
+| **SNS** | 1,000 email notifications/month | Fraud alert delivery |
 
-- Authentication/authorization on the ingestion endpoint
-- A read API for the audit table (`GET /transactions`)
-- Multi-region / cross-region failover
-- Idempotency or dedup on `transaction_id`
+> ⚠️ **Note**: Monitor usage via AWS Budgets if approaching production scale - Free Tier benefits change periodically.
 
----
+### 🔒 Security Posture
 
-## 7. Contract with the other folders
+- **Least Privilege IAM**: Each service role has only permissions it needs
+- **No Wildcard Resources**: All ARNs are specific to created resources
+- **No Hardcoded Secrets**: Zero credentials in code or templates
+- **Parameterized Configuration**: Sensitive values passed at deployment time
+- **Audit Logging**: All transactions immutably recorded in DynamoDB
 
-- `CodeUri: ../lambda/` — this template zips whatever's in that folder.
-  `Handler:` here must match the handler name the Lambda team ships.
-- The three template outputs (§3) are the interface `frontend/` builds
-  against. Don't rename them without updating `frontend/.env.example` and
-  `frontend/lib/api.ts` in the same PR.
-- See [`../CONTRIBUTING.md`](../CONTRIBUTING.md) for the shared-contract
-  rule: any change to the transaction payload shape or these output names
-  must land across `infra/`, `lambda/`, and `frontend/` together.
+### 🔄 Dependencies
 
----
+#### Internal Dependencies
+- **`lambda/`**: Contains the `fraud_evaluator.py` function code
+  - SAM `CodeUri` points to `../lambda/`
+  - Handler must match `fraud_evaluator.handler`
 
-## Definition of done
+#### External Dependencies
+- **AWS Services**: API Gateway, SQS, Lambda, DynamoDB, SNS, CloudWatch, IAM
+- **AWS SAM CLI**: For local development and deployment
+- **AWS CLI**: For stack management and output retrieval
 
-- [ ] `sam validate --lint` (or `cfn-lint`) passes clean
-- [ ] `sam deploy --guided` succeeds and prints all three required outputs
-- [ ] SNS email subscription confirmed and a manual high-risk test message
-      actually arrives
-- [ ] No IAM statement uses a wildcard action or resource
-- [ ] CORS origin is the single value from `AllowedOrigin`, not `*`
-- [ ] `sam local invoke` against `events/sample-sqs-event.json` runs once
-      the Lambda exists
+### 🐛 Known Limitations
+
+- **Single Region Deployment**: No cross-region replication for disaster recovery
+- **No Read API**: No endpoint to retrieve audit records (intentional for Phase 1)
+- **No Authentication**: Ingestion endpoint is publicly accessible (MVP limitation)
+- **Fixed Regions**: All resources deployed to single specified region
+
+### 🚀 Future Enhancements
+
+1. **Add Read API**: `GET /transactions` endpoint with pagination/filtering
+2. **Implement Authentication**: API Gateway authorizer or Cognito integration
+3. **Multi-Region Deployment**: Cross-region replication for disaster recovery
+4. **Enhanced Monitoring**: CloudWatch dashboards and alarms
+5. **Tagging Strategy**: Resource allocation tagging for cost accounting
+
+### 📚 Additional Resources
+
+- [AWS SAM Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html)
+- [SAM CLI Installation Guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/install-sam-cli.html)
+- [AWS Free Tier Details](https://aws.amazon.com/free/)
+- [SQS Dead Letter Queues](https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-dead-letter-queues.html)
+- [DynamoDB On-Demand Capacity](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/HowItWorks.ReadWriteCapacityMode.html#HowItWorks.OnDemand)

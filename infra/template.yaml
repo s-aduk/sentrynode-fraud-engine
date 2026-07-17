@@ -1,0 +1,218 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  SentryNode Fraud Engine — Phase 1 MVP. Event-driven, serverless fraud
+  detection. Every resource choice here is sized to stay inside AWS Free
+  Tier at MVP-level traffic (see infra/README.md for the breakdown).
+
+Parameters:
+  AlertEmail:
+    Type: String
+    Description: >
+      Email address subscribed to the high-risk-transaction SNS topic.
+      You must confirm the SNS subscription email after first deploy.
+  AllowedOrigin:
+    Type: String
+    Description: >
+      Single explicit origin allowed to call the ingestion API (CORS).
+      Never use "*". Example: https://sentrynode.example.com
+    AllowedPattern: "^https?://.+"
+  HighAmountThreshold:
+    Type: Number
+    Default: 10000
+    Description: Amount (in the transaction's currency unit) that triggers the amount heuristic.
+  HighRiskCountries:
+    Type: String
+    Default: "KP,IR,SY,CU"
+    Description: Comma-separated ISO country codes treated as high-risk (Phase 1 hardcoded list).
+  HighRiskScoreFlag:
+    Type: Number
+    Default: 50
+    Description: Score at/above which a transaction is flagged high-risk and alerted.
+  LogRetentionDays:
+    Type: Number
+    Default: 3
+    Description: CloudWatch log retention, capped low for Free Tier cost control.
+
+Globals:
+  Function:
+    Timeout: 15
+    MemorySize: 128
+    Runtime: python3.12
+    Tracing: PassThrough
+
+Resources:
+  # ------------------------------------------------------------------
+  # Data Shield: ingestion queue + DLQ. maxReceiveCount 3 before DLQ.
+  # ------------------------------------------------------------------
+  IngestionDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: sentrynode-ingestion-dlq
+      MessageRetentionPeriod: 1209600 # 14 days, Free Tier eligible
+
+  IngestionQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: sentrynode-ingestion-queue
+      VisibilityTimeout: 90 # >= 6x Lambda timeout, per AWS guidance
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt IngestionDLQ.Arn
+        maxReceiveCount: 3
+
+  # A resource-scoped policy for API Gateway's direct SQS SendMessage
+  # integration. No wildcards: this role can only SendMessage to this
+  # one queue, nothing else.
+  ApiGatewaySqsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: apigateway.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: sentrynode-apigw-sqs-send
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt IngestionQueue.Arn
+
+  # ------------------------------------------------------------------
+  # Audit store. On-demand billing keeps this inside Free Tier at MVP
+  # traffic (no need to size read/write capacity units up front).
+  # ------------------------------------------------------------------
+  AuditTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: sentrynode-audit-log
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: transaction_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: transaction_id
+          KeyType: HASH
+
+  # ------------------------------------------------------------------
+  # Alerts: SNS topic + a single email subscription. Fan-out ready —
+  # add more Subscriptions (chat webhook via Lambda, SMS, etc.) later
+  # without touching the Lambda's IAM policy, since it only needs Publish.
+  # ------------------------------------------------------------------
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: sentrynode-high-risk-alerts
+
+  AlertEmailSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: !Ref AlertEmail
+
+  # ------------------------------------------------------------------
+  # Processing Lambda. IAM: exactly dynamodb:PutItem on AuditTable and
+  # sns:Publish on AlertTopic. No wildcard actions or resources anywhere.
+  # ------------------------------------------------------------------
+  FraudEvaluatorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: sentrynode-fraud-evaluator
+      Handler: fraud_evaluator.handler
+      CodeUri: ../lambda/
+      Environment:
+        Variables:
+          AUDIT_TABLE_NAME: !Ref AuditTable
+          ALERT_TOPIC_ARN: !Ref AlertTopic
+          HIGH_AMOUNT_THRESHOLD: !Ref HighAmountThreshold
+          HIGH_RISK_COUNTRIES: !Ref HighRiskCountries
+          HIGH_RISK_SCORE_FLAG: !Ref HighRiskScoreFlag
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action: dynamodb:PutItem
+              Resource: !GetAtt AuditTable.Arn
+            - Effect: Allow
+              Action: sns:Publish
+              Resource: !Ref AlertTopic
+      Events:
+        IngestionQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt IngestionQueue.Arn
+            BatchSize: 10
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+  FraudEvaluatorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${FraudEvaluatorFunction}
+      RetentionInDays: !Ref LogRetentionDays
+
+  # ------------------------------------------------------------------
+  # HTTP API — direct AWS_PROXY integration straight to SQS. No Lambda
+  # sits in the ingestion hot path; API Gateway assumes ApiGatewaySqsRole
+  # and calls SQS SendMessage directly.
+  # ------------------------------------------------------------------
+  IngestionHttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: sentrynode-ingestion-api
+      ProtocolType: HTTP
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref AllowedOrigin
+        AllowMethods:
+          - POST
+        AllowHeaders:
+          - content-type
+
+  IngestionIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref IngestionHttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationSubtype: SQS-SendMessage
+      CredentialsArn: !GetAtt ApiGatewaySqsRole.Arn
+      RequestParameters:
+        QueueUrl: !Ref IngestionQueue
+        MessageBody: "$request.body"
+      PayloadFormatVersion: "1.0"
+
+  IngestionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref IngestionHttpApi
+      RouteKey: "POST /transaction"
+      Target: !Sub "integrations/${IngestionIntegration}"
+
+  IngestionStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref IngestionHttpApi
+      StageName: prod
+      AutoDeploy: true
+
+Outputs:
+  IngestionApiUrl:
+    Description: POST endpoint for the Transaction Emulator frontend
+    Value: !Sub "https://${IngestionHttpApi}.execute-api.${AWS::Region}.amazonaws.com/prod/transaction"
+  AuditTableName:
+    Description: DynamoDB table storing every evaluated transaction
+    Value: !Ref AuditTable
+  AlertTopicArn:
+    Description: SNS topic for high-risk transaction alerts
+    Value: !Ref AlertTopic
+  IngestionQueueUrl:
+    Description: SQS queue receiving raw transactions from the API
+    Value: !Ref IngestionQueue
+  IngestionDLQUrl:
+    Description: Dead-letter queue for transactions that failed 3 times
+    Value: !Ref IngestionDLQ
